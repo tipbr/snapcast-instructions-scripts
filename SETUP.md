@@ -190,6 +190,18 @@ LIBRESPOT_DEVICE=/tmp/snapfifo
 LIBRESPOT_FORMAT=s16
 LIBRESPOT_SAMPLE_RATE=44100
 
+# Start at full volume so Spotify never receives silent audio.
+# Without this, a stored volume of 0 can cause Spotify to skip
+# tracks after a couple of seconds.
+LIBRESPOT_INITIAL_VOLUME=100
+
+# Use a fixed (passthrough) mixer — volume is controlled per-client
+# by snapcast, not by librespot.
+LIBRESPOT_VOLUME_CTRL=fixed
+
+# Disable the audio file cache to avoid stale data causing skips.
+LIBRESPOT_DISABLE_AUDIO_CACHE=
+
 # Optional: normalise volume
 # LIBRESPOT_ENABLE_VOLUME_NORMALISATION=true
 ```
@@ -499,6 +511,7 @@ individual client volumes, and assign clients to groups.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Snapcast device not visible in Spotify | `raspotify` not running or mDNS not working | `sudo systemctl restart raspotify`; ensure `avahi-daemon` is running |
+| Spotify plays a few seconds then skips to next track | librespot volume starts at 0, causing Spotify's silence detection to skip; or stale audio cache | Ensure `LIBRESPOT_INITIAL_VOLUME=100`, `LIBRESPOT_VOLUME_CTRL=fixed`, and `LIBRESPOT_DISABLE_AUDIO_CACHE=` are set in the raspotify conf; clear cache with `sudo rm -rf /var/cache/raspotify`; then `sudo systemctl restart raspotify` |
 | No audio on server headphone jack | Wrong ALSA device name | Run `aplay -l`; update `--soundcard` in `/etc/default/snapclient` |
 | No audio on client | DAC overlay not loaded | Check `aplay -l` after reboot; verify `dtoverlay=hifiberry-dac` in `config.txt` |
 | Client disconnects periodically | WiFi power management | Verify `iwconfig wlan0` shows `Power Management:off`; re-run client setup |

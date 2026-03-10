@@ -167,9 +167,31 @@ LIBRESPOT_DEVICE=${SNAPFIFO}
 LIBRESPOT_FORMAT=s16
 LIBRESPOT_SAMPLE_RATE=44100
 
+# Start at full volume so Spotify never receives silent audio.
+# Without this, the stored volume (which may be 0) is used on startup,
+# causing Spotify to detect silence and skip to the next track after a
+# couple of seconds.
+LIBRESPOT_INITIAL_VOLUME=100
+
+# Use a fixed (passthrough) mixer so that Spotify's in-app volume slider
+# does not attenuate the PCM data written to the pipe.  Volume is
+# controlled per-client by snapcast, not by librespot.
+LIBRESPOT_VOLUME_CTRL=fixed
+
+# Disable the librespot audio file cache.  Stale cached audio can cause
+# playback to skip immediately — especially when re-running this script
+# after a previous setup.
+LIBRESPOT_DISABLE_AUDIO_CACHE=
+
 # Uncomment to enable volume normalisation
 # LIBRESPOT_ENABLE_VOLUME_NORMALISATION=true
 EOF
+
+# Clear any pre-existing librespot / raspotify audio cache.  Stale cache
+# entries written by a previous run can cause the "plays a few seconds
+# then skips" symptom even after the config is corrected.
+log "Clearing raspotify audio cache (if present)..."
+rm -rf /var/cache/raspotify 2>/dev/null || true
 
 # --- 5. Configure snapserver ------------------------------------------------
 log "Configuring snapserver..."
