@@ -149,15 +149,16 @@ Download the latest `.deb` packages from the
 [Snapcast releases page](https://github.com/badaix/snapcast/releases).
 
 ```bash
-SNAPCAST_VERSION="0.27.0"
-ARCH=$(dpkg --print-architecture)    # armhf for Pi 4 / Pi Zero
+SNAPCAST_VERSION="0.34.0"
+ARCH=$(dpkg --print-architecture)                          # armhf for Pi 4 / Pi Zero
+DISTRO=$(. /etc/os-release && echo "${VERSION_CODENAME}")  # e.g. bookworm or bullseye
 
 # Server package (includes snapserver)
-wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapserver_${SNAPCAST_VERSION}-1_${ARCH}.deb" \
+wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapserver_${SNAPCAST_VERSION}-1_${ARCH}_${DISTRO}.deb" \
   -O /tmp/snapserver.deb
 
 # Client package
-wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapclient_${SNAPCAST_VERSION}-1_${ARCH}.deb" \
+wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapclient_${SNAPCAST_VERSION}-1_${ARCH}_${DISTRO}.deb" \
   -O /tmp/snapclient.deb
 
 sudo apt install -y /tmp/snapserver.deb /tmp/snapclient.deb
@@ -296,10 +297,11 @@ ctl.!default {
 ### 5.4 Install snapclient
 
 ```bash
-SNAPCAST_VERSION="0.27.0"
-ARCH=$(dpkg --print-architecture)   # Raspberry Pi OS reports 'armhf' for all Pi models including the Pi Zero (ARMv6 CPU)
+SNAPCAST_VERSION="0.34.0"
+ARCH=$(dpkg --print-architecture)                          # Raspberry Pi OS reports 'armhf' for all Pi models including the Pi Zero (ARMv6 CPU)
+DISTRO=$(. /etc/os-release && echo "${VERSION_CODENAME}")  # e.g. bookworm or bullseye
 
-wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapclient_${SNAPCAST_VERSION}-1_${ARCH}.deb" \
+wget "https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}/snapclient_${SNAPCAST_VERSION}-1_${ARCH}_${DISTRO}.deb" \
   -O /tmp/snapclient.deb
 
 sudo apt install -y /tmp/snapclient.deb
