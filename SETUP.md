@@ -101,6 +101,9 @@ The script will:
 - Configure librespot to write audio to `/tmp/snapfifo`
 - Configure `snapserver` to read from that pipe
 - Configure `snapclient` to output via the headphone jack
+- Fix service start ordering so `raspotify` starts **after** `snapserver`
+- Block `apresolve.spotify.com` to work around the Spotify API skip issue
+  (see [librespot #1623](https://github.com/librespot-org/librespot/issues/1623))
 - Disable WiFi power management
 - Enable `unattended-upgrades` for automatic security updates
 - Install and enable a watchdog systemd service that automatically restarts
@@ -202,6 +205,10 @@ LIBRESPOT_VOLUME_CTRL=fixed
 # Disable the audio file cache to avoid stale data causing skips.
 LIBRESPOT_DISABLE_AUDIO_CACHE=
 
+# Uncomment to enable verbose logging when diagnosing skip issues.
+# View with: journalctl -u raspotify -f
+# LIBRESPOT_VERBOSE=
+
 # Optional: normalise volume
 # LIBRESPOT_ENABLE_VOLUME_NORMALISATION=true
 ```
@@ -209,6 +216,39 @@ LIBRESPOT_DISABLE_AUDIO_CACHE=
 > **Older raspotify versions** use `/etc/default/raspotify` with a different
 > syntax.  See the [raspotify README](https://github.com/dtcooper/raspotify)
 > for the appropriate format for your installed version.
+
+### 4.4a Fix service start ordering
+
+Raspotify must start **after** snapserver so that the FIFO has a reader before
+librespot writes to it.  Create a systemd drop-in override:
+
+```bash
+sudo mkdir -p /etc/systemd/system/raspotify.service.d
+sudo tee /etc/systemd/system/raspotify.service.d/after-snapserver.conf <<'EOF'
+[Unit]
+After=snapserver.service
+Wants=snapserver.service
+EOF
+sudo systemctl daemon-reload
+```
+
+### 4.4b Block `apresolve.spotify.com` (Spotify API skip fix)
+
+A Spotify backend change in late 2024 causes librespot to resolve tracks through
+`apresolve.spotify.com`, which returns access points incompatible with open-source
+clients — resulting in tracks playing for 1–2 seconds then skipping.
+Blocking this domain forces librespot to use its fallback access-point list.
+(See [librespot issue #1623](https://github.com/librespot-org/librespot/issues/1623).)
+
+```bash
+echo "0.0.0.0 apresolve.spotify.com" | sudo tee -a /etc/hosts
+```
+
+Restart raspotify after making this change:
+
+```bash
+sudo systemctl restart raspotify
+```
 
 ### 4.5 Configure snapserver
 
@@ -511,7 +551,9 @@ individual client volumes, and assign clients to groups.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Snapcast device not visible in Spotify | `raspotify` not running or mDNS not working | `sudo systemctl restart raspotify`; ensure `avahi-daemon` is running |
-| Spotify plays a few seconds then skips to next track | librespot volume starts at 0, causing Spotify's silence detection to skip; or stale audio cache | Ensure `LIBRESPOT_INITIAL_VOLUME=100`, `LIBRESPOT_VOLUME_CTRL=fixed`, and `LIBRESPOT_DISABLE_AUDIO_CACHE=` are set in the raspotify conf; clear cache with `sudo rm -rf /var/cache/raspotify`; then `sudo systemctl restart raspotify` |
+| Spotify plays a few seconds then skips to next track | librespot volume starts at 0, causing Spotify's silence detection to skip; or stale audio cache | Ensure `LIBRESPOT_INITIAL_VOLUME=100`, `LIBRESPOT_VOLUME_CTRL=fixed`, and `LIBRESPOT_DISABLE_AUDIO_CACHE=` are set in the raspotify conf; clear cache with `sudo rm -rf /var/cache/raspotify /var/cache/librespot`; then `sudo systemctl restart raspotify` |
+| Spotify plays a few seconds then skips (still, after above fix) | Spotify API backend change (late 2024/2025) routes through `apresolve.spotify.com`, returning access points incompatible with librespot | Block the domain: `sudo sh -c 'echo "0.0.0.0 apresolve.spotify.com" >> /etc/hosts'` then `sudo systemctl restart raspotify`. See [librespot #1623](https://github.com/librespot-org/librespot/issues/1623) |
+| Spotify plays a few seconds then skips (still, after both fixes) | raspotify starts before snapserver; librespot writes to FIFO with no reader and blocks/timeouts | Ensure service ordering drop-in is in place: `sudo cat /etc/systemd/system/raspotify.service.d/after-snapserver.conf` (re-run `setup-server.sh` if missing) |
 | No audio on server headphone jack | Wrong ALSA device name | Run `aplay -l`; update `--soundcard` in `/etc/default/snapclient` |
 | No audio on client | DAC overlay not loaded | Check `aplay -l` after reboot; verify `dtoverlay=hifiberry-dac` in `config.txt` |
 | Client disconnects periodically | WiFi power management | Verify `iwconfig wlan0` shows `Power Management:off`; re-run client setup |
@@ -521,9 +563,39 @@ individual client volumes, and assign clients to groups.
 
 ### Viewing logs
 
+Use `show-logs.sh` for a quick diagnostic overview, or run the `journalctl`
+commands directly.
+
 ```bash
+# --- Quick all-in-one log tool (recommended) ---
+
+# Follow all Snapcast-related logs in real time (best for reproducing a skip)
+sudo bash scripts/show-logs.sh
+
+# Print service status + FIFO/apresolve diagnostics + recent logs
+sudo bash scripts/show-logs.sh --status
+
+# Show only warnings and errors from the past hour
+sudo bash scripts/show-logs.sh --errors
+
+# Show the last 200 log lines
+sudo bash scripts/show-logs.sh --lines 200
+
+# --- Run over SSH directly ---
+ssh pi@192.168.0.230 'sudo bash -s' < scripts/show-logs.sh
+```
+
+```bash
+# --- Raw journalctl commands ---
+
 # Follow all Snapcast-related logs in real time
 journalctl -f -u snapserver -u snapclient -u raspotify
+
+# Show the last 100 lines without following
+journalctl -u snapserver -u snapclient -u raspotify -n 100 --no-pager
+
+# Warnings and errors only (great for spotting the skip root-cause)
+journalctl -u raspotify --since "1 hour ago" -p warning --no-pager
 
 # Watchdog log
 journalctl -u snapcast-watchdog -n 50

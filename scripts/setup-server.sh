@@ -183,6 +183,10 @@ LIBRESPOT_VOLUME_CTRL=fixed
 # after a previous setup.
 LIBRESPOT_DISABLE_AUDIO_CACHE=
 
+# Uncomment to enable verbose logging when diagnosing skip/silence issues.
+# Logs are visible via: journalctl -u raspotify -f
+# LIBRESPOT_VERBOSE=
+
 # Uncomment to enable volume normalisation
 # LIBRESPOT_ENABLE_VOLUME_NORMALISATION=true
 EOF
@@ -190,8 +194,42 @@ EOF
 # Clear any pre-existing librespot / raspotify audio cache.  Stale cache
 # entries written by a previous run can cause the "plays a few seconds
 # then skips" symptom even after the config is corrected.
-log "Clearing raspotify audio cache (if present)..."
+log "Clearing raspotify/librespot audio cache (if present)..."
 rm -rf /var/cache/raspotify 2>/dev/null || true
+rm -rf /var/cache/librespot  2>/dev/null || true
+
+# --- 4b. Fix raspotify service start ordering --------------------------------
+# Snapserver must be running and reading the FIFO *before* raspotify/librespot
+# starts writing to it.  If raspotify starts first, librespot blocks on the
+# first pipe write (no reader) and can timeout or skip tracks immediately.
+log "Ensuring raspotify starts after snapserver (service ordering)..."
+
+mkdir -p /etc/systemd/system/raspotify.service.d
+cat > /etc/systemd/system/raspotify.service.d/after-snapserver.conf <<EOF
+[Unit]
+# Delay raspotify until snapserver is running and consuming the FIFO.
+# Without this ordering, librespot may write to an unread pipe and skip.
+After=snapserver.service
+Wants=snapserver.service
+EOF
+
+# --- 4c. Block apresolve.spotify.com ----------------------------------------
+# A Spotify backend change (late 2024 / 2025) causes librespot to route track
+# resolution through apresolve.spotify.com, which returns access points that
+# are incompatible with librespot — resulting in tracks playing for 1–2 seconds
+# then skipping.  Blocking this domain forces librespot to use its fallback
+# access-point list, which resolves correctly.
+# See: https://github.com/librespot-org/librespot/issues/1623
+log "Blocking apresolve.spotify.com to work around Spotify API skip issue..."
+
+if ! grep -q "apresolve.spotify.com" /etc/hosts; then
+    # Add a blank separator only when the block is first inserted
+    echo "" >> /etc/hosts
+    echo "# Workaround: block apresolve.spotify.com so librespot uses its" >> /etc/hosts
+    echo "# fallback access points (fixes tracks skipping after 1-2 seconds)." >> /etc/hosts
+    echo "# See: https://github.com/librespot-org/librespot/issues/1623" >> /etc/hosts
+    echo "0.0.0.0 apresolve.spotify.com" >> /etc/hosts
+fi
 
 # --- 5. Configure snapserver ------------------------------------------------
 log "Configuring snapserver..."
@@ -366,7 +404,9 @@ log "Enabling and starting services..."
 
 systemctl daemon-reload
 systemctl enable snapserver snapclient raspotify snapcast-watchdog
-systemctl restart snapserver snapclient raspotify
+# Start snapserver first so the FIFO has a reader before raspotify writes to it.
+systemctl restart snapserver snapclient
+systemctl restart raspotify
 systemctl start  snapcast-watchdog
 
 # --- Summary ----------------------------------------------------------------
