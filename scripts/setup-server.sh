@@ -31,7 +31,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configuration — edit these if your setup differs
 # ---------------------------------------------------------------------------
-SNAPCAST_VERSION="0.27.0"
+SNAPCAST_VERSION="0.34.0"
 SERVER_IP="192.168.0.230"
 SNAPFIFO="/tmp/snapfifo"
 SPOTIFY_DEVICE_NAME="Snapcast"
@@ -59,6 +59,20 @@ detect_arch() {
     esac
 }
 
+detect_distro() {
+    local codename=""
+    if [ -f /etc/os-release ]; then
+        codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-}")
+        [ -z "$codename" ] && die "/etc/os-release found but VERSION_CODENAME is not set. Cannot determine Debian/Raspbian release."
+    else
+        die "/etc/os-release not found. Cannot determine Debian/Raspbian release."
+    fi
+    case "$codename" in
+        bookworm|bullseye|trixie) echo "$codename" ;;
+        *) die "Unsupported Debian/Raspbian release: '${codename}'. Expected bookworm, bullseye, or trixie." ;;
+    esac
+}
+
 # Determine the correct boot config file (Bookworm uses /boot/firmware/config.txt)
 boot_config() {
     if [ -f /boot/firmware/config.txt ]; then
@@ -83,12 +97,14 @@ apt-get install -y curl wget avahi-daemon unattended-upgrades wireless-tools
 
 # --- 2. Install Snapcast ----------------------------------------------------
 ARCH=$(detect_arch)
+DISTRO=$(detect_distro)
 log "Detected architecture: $ARCH"
+log "Detected distro: $DISTRO"
 log "Installing Snapcast ${SNAPCAST_VERSION}..."
 
 BASE_URL="https://github.com/badaix/snapcast/releases/download/v${SNAPCAST_VERSION}"
-SERVER_DEB="snapserver_${SNAPCAST_VERSION}-1_${ARCH}.deb"
-CLIENT_DEB="snapclient_${SNAPCAST_VERSION}-1_${ARCH}.deb"
+SERVER_DEB="snapserver_${SNAPCAST_VERSION}-1_${ARCH}_${DISTRO}.deb"
+CLIENT_DEB="snapclient_${SNAPCAST_VERSION}-1_${ARCH}_${DISTRO}.deb"
 
 wget -q "${BASE_URL}/${SERVER_DEB}" -O "/tmp/${SERVER_DEB}"
 wget -q "${BASE_URL}/${CLIENT_DEB}" -O "/tmp/${CLIENT_DEB}"
