@@ -191,12 +191,21 @@ LIBRESPOT_DISABLE_AUDIO_CACHE=
 # LIBRESPOT_ENABLE_VOLUME_NORMALISATION=true
 EOF
 
-# Clear any pre-existing librespot / raspotify audio cache.  Stale cache
-# entries written by a previous run can cause the "plays a few seconds
-# then skips" symptom even after the config is corrected.
+# Clear any pre-existing librespot / raspotify audio cache.  Stale or
+# corrupted cache entries written by a previous run can cause both the
+# "plays a few seconds then skips" symptom AND the
+# "Symphonia Decoder Error: end of stream" error that causes librespot
+# to skip tracks immediately.  We clear every location librespot may
+# have used, including the service-user's XDG home directories
+# (newer raspotify runs as the 'raspotify' user whose home is
+# /var/lib/raspotify).
 log "Clearing raspotify/librespot audio cache (if present)..."
 rm -rf /var/cache/raspotify 2>/dev/null || true
 rm -rf /var/cache/librespot  2>/dev/null || true
+# Newer librespot (bundled with recent raspotify) writes cache under the
+# service user's XDG data/cache directories.
+rm -rf /var/lib/raspotify/.local/share/librespot 2>/dev/null || true
+rm -rf /var/lib/raspotify/.cache/librespot        2>/dev/null || true
 
 # --- 4b. Fix raspotify service start ordering --------------------------------
 # Snapserver must be running and reading the FIFO *before* raspotify/librespot

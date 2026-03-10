@@ -95,6 +95,22 @@ print_diagnostics() {
         echo "    0.0.0.0 apresolve.spotify.com"
         echo "  See: https://github.com/librespot-org/librespot/issues/1623"
     fi
+
+    echo
+    header "Symphonia Decoder Error (corrupted cache check)"
+    SYMPHONIA_HITS=$(journalctl -u raspotify --since "1 hour ago" --no-pager -q 2>/dev/null \
+        | grep -c "Symphonia Decoder Error" || true)
+    if [ "${SYMPHONIA_HITS:-0}" -gt 0 ]; then
+        echo "  WARNING: ${SYMPHONIA_HITS} 'Symphonia Decoder Error' hit(s) in the past hour"
+        echo "  This indicates corrupted or incomplete cached audio files."
+        echo "  Fix: clear the librespot audio cache and restart raspotify:"
+        echo "    sudo rm -rf /var/cache/raspotify /var/cache/librespot \\"
+        echo "                /var/lib/raspotify/.local/share/librespot \\"
+        echo "                /var/lib/raspotify/.cache/librespot"
+        echo "    sudo systemctl restart raspotify"
+    else
+        echo "  No Symphonia decoder errors found in the past hour (OK)"
+    fi
     echo
 }
 
@@ -139,7 +155,7 @@ case "$MODE" in
         print_status
         print_diagnostics
         header "Following logs in real time — press Ctrl-C to stop"
-        echo "  Tip: watch for 'error', 'skip', 'disconnect', 'failed', 'timeout'"
+        echo "  Tip: watch for 'error', 'skip', 'disconnect', 'failed', 'timeout', 'symphonia', 'unable to read'"
         echo "  Tip: play a Spotify track and observe the log output to pinpoint skips"
         echo
         journalctl -f \
