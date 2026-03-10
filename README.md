@@ -16,11 +16,11 @@ Setup instructions and scripts for a **Snapcast multi-room audio system** with *
 1. Read [`SETUP.md`](SETUP.md) for the full guide and architecture overview.
 2. SSH into your server Pi and run:
    ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/setup-server.sh)
+   curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/setup-server.sh | sudo bash
    ```
 3. SSH into each client Pi and run:
    ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/setup-client.sh)
+   curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/setup-client.sh | sudo bash
    ```
 
 ## Hardware
@@ -39,13 +39,13 @@ If tracks start then skip immediately, run the log monitoring tool over SSH:
 
 ```bash
 # Follow live logs while reproducing the skip
-ssh pi@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash'
+ssh brad@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash'
 
 # Print service status + diagnostic summary
-ssh pi@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash -s -- --status'
+ssh brad@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash -s -- --status'
 
 # Show only warnings/errors from the past hour
-ssh pi@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash -s -- --errors'
+ssh brad@192.168.0.230 'curl -fsSL https://raw.githubusercontent.com/tipbr/snapcast-instructions-scripts/main/scripts/show-logs.sh | sudo bash -s -- --errors'
 ```
 
 See [SETUP.md § 9 Troubleshooting](SETUP.md#9-troubleshooting) for a full list of known causes and fixes.
